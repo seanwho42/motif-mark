@@ -40,6 +40,24 @@ class Motif:
     def __init__(self):
         self.color = None
 
+class Segment:
+    def __init__(self, start_bp, end_bp):
+        self.start_bp = start_bp
+        self.end_bp = end_bp
+        self.start_x = None
+        self.end_x = None
+
+    def set_x_positions(self, bp):
+        '''
+        Docstring for set_x_positions
+        
+        :param self: Description
+        :param bp: Description
+        '''
+        # TODO: make this figure it out within the context of the longest read -- it should be called after all have been read in
+        x = bp
+        return 
+
 def main(fasta = args.fasta, motifs_file = args.motifs, out = args.out):
     #TODO: flush out docstring
     '''
@@ -59,7 +77,7 @@ def get_motifs(motifs_file):
     
     :param motifs_file: Description
     '''
-    
+
     color_palette = ['#66c2a5','#fc8d62','#8da0cb','#e78ac3','#a6d854','#ffd92f','#e5c494','#b3b3b3']
     motifs = {}
 
