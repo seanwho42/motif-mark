@@ -23,16 +23,39 @@ def get_args():
 args = get_args()
 
 class FastaRead:
-    def __init__(self, seq):
+    def __init__(self, header, seq):
+        self.header = header
         self.seq = seq
         self.segments = []
-        self.motifs = []
+        self.motifs = None
 
-    def get_motifs():
+    def find_motifs(self, motifs):
         # find motifs in the sequence
-        pass
 
-    def get_segments():
+        # keys are the motif color, values are tuples of their x position span (in base pairs)
+
+        motifs_positions = {}
+        for motif in motifs.keys():
+            # span doesn't work because when finding regex matches using finditer
+            # with lookahead, it doesn't capture the string itself, just the start
+
+            print(re.sub(r"\[[ACTUG]+\]", "N", motif))
+            motif_len = len(re.sub(r"\[[ACTUG]+\]", "N", motif))
+
+            color = motifs[motif]
+            motif_matches = re.finditer(f"(?={motif})", self.seq.upper())
+
+            for match in motif_matches:
+                # initialize 
+                x_span = (match.start(), match.start() + motif_len)
+                if color in motifs_positions.keys():
+                    motifs_positions[color].append(x_span)
+                else:
+                    motifs_positions[color] = [x_span]
+
+        self.motifs = motifs_positions
+
+    def get_segments(self):
         # assign segments to the segments list
         pass
 
@@ -42,6 +65,7 @@ class Motif:
 
 class Segment:
     def __init__(self, start_bp, end_bp):
+        self.is_exon = None
         self.start_bp = start_bp
         self.end_bp = end_bp
         self.start_x = None
@@ -58,6 +82,13 @@ class Segment:
         x = bp
         return 
 
+class Intron(Segment):
+    pass
+
+class Exon(Segment):
+    pass
+
+
 def main(fasta = args.fasta, motifs_file = args.motifs, out = args.out):
     #TODO: flush out docstring
     '''
@@ -69,21 +100,64 @@ def main(fasta = args.fasta, motifs_file = args.motifs, out = args.out):
     '''
     fasta = oneline_fasta(fasta)
     motifs = get_motifs(motifs_file)
+    reads = []
+
+    with open(fasta, "r") as f:
+        max_length = 0
+        for n, line in enumerate(f):
+            line = line.strip()
+            if n % 2 == 0:
+                # header line
+                header = line
+            else:
+                reads.append(FastaRead(header, line))
+
+                # set max read length for purposes of setting the canvas width
+                read_length = len(line)
+
+                if read_length > max_length:
+                    max_length = read_length
+        for read in reads:
+            read.find_motifs(motifs)
+            print(read.motifs)
+        
+
 
 
 def get_motifs(motifs_file):
     '''
-    Docstring for get_motifs
+    Gets motifs from motifs file and replaces characters with appropriate
+    regex pattern to match (upper case only) to nucleotides in fasta file.
     
     :param motifs_file: Description
     '''
 
     color_palette = ['#66c2a5','#fc8d62','#8da0cb','#e78ac3','#a6d854','#ffd92f','#e5c494','#b3b3b3']
     motifs = {}
+    # list of substitutes for regex patterns to properly match
+    iupac_subs = {
+        "[TU]" : "[TU]",
+        "R" : "[AG]",
+        "Y" : "[CTU]",
+        "S" : "[GC]",
+        "W" : "[ATU]",
+        "K" : "[GTU]",
+        "M" : "[AC]",
+        "B" : "[CGTU]",
+        "D" : "[AGTU]",
+        "H" : "[ACTU]",
+        "V" : "[ACG]",
+        "N" : "[ACTUG]"
+        }
 
-    with open(motifs_file, 'r') as m:
-        for n, motif in enumerate(m):
-            motif = motif.strip()
+    with open(motifs_file, 'r') as mf:
+        for n, motif in enumerate(mf):
+            # make it all upper case -- comparison later will make the FASTA nucleotides lower case to match
+            motif = motif.strip().upper()
+            for nuc in iupac_subs.keys():
+                motif = re.sub(nuc, iupac_subs[nuc], motif)
             motifs[motif] = color_palette[n]
-    
+    print(motifs)
     return motifs
+
+main()

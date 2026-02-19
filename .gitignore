@@ -1,0 +1,3 @@
+# ignoring assignment input files
+*.fasta
+*.txt
