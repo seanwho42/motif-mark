@@ -56,8 +56,26 @@ class FastaRead:
 
         self.motifs = motifs_positions
 
-    def get_segments(self):
+    def find_segments(self):
         # assign segments to the segments list
+        # TODO: test to see if this works properly with multiple introns/exons
+        segment_matches = re.findall(r"([actug]+|[ACTUG]+)", self.seq)
+        bp = 0
+        for segment_str in segment_matches:
+            segment_bp = len(segment_str)
+            # oneline_fasta() should validate that these are valid fastas? if not, add that. 
+            if re.search(r"[actug]", segment_str) is None:
+                is_exon = True
+            else:
+                is_exon = False
+            # TODO: check to see how this translates to the drawings
+            segment = Segment(bp, bp + segment_bp - 1, is_exon)
+            self.segments.append(segment)
+            bp += len(segment_str)
+    
+    def draw_read(self):
+        # TODO: add docstring
+        
         pass
 
 class Motif:
@@ -65,33 +83,13 @@ class Motif:
         self.color = color
         self.start_bp = start_bp
         self.end_bp = end_bp
-        self.start_x = None
-        self.end_x = None
+
 
 class Segment:
-    def __init__(self, start_bp, end_bp):
-        self.is_exon = None
+    def __init__(self, start_bp, end_bp, is_exon):
+        self.is_exon = is_exon
         self.start_bp = start_bp
         self.end_bp = end_bp
-        self.start_x = None
-        self.end_x = None
-
-    def set_x_positions(self, bp):
-        '''
-        Docstring for set_x_positions
-        
-        :param self: Description
-        :param bp: Description
-        '''
-        # TODO: make this figure it out within the context of the longest read -- it should be called after all have been read in
-        x = bp
-        return
-
-class Intron(Segment):
-    pass
-
-class Exon(Segment):
-    pass
 
 
 def main(fasta = args.fasta, motifs_file = args.motifs, out = args.out):
@@ -124,8 +122,13 @@ def main(fasta = args.fasta, motifs_file = args.motifs, out = args.out):
                     max_length = read_length
         for read in reads:
             read.find_motifs(motifs)
-            print(read.motifs)
+            read.find_segments()
+            for segment in read.segments:
+                print(segment.start_bp)
+                print(segment.end_bp)
+            # print(read.motifs)
         
+
 
 
 
@@ -162,7 +165,10 @@ def get_motifs(motifs_file):
             for nuc in iupac_subs.keys():
                 motif = re.sub(nuc, iupac_subs[nuc], motif)
             motifs[motif] = color_palette[n]
-    print(motifs)
+    # print(motifs)
     return motifs
 
 main()
+
+
+# surface.write_to_png('geek.png')
