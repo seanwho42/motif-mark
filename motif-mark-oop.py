@@ -23,19 +23,20 @@ def get_args():
 args = get_args()
 
 class FastaRead:
-    def __init__(self, header, seq):
+    def __init__(self, header, seq, motifs_colors):
         self.header = header
         self.seq = seq
-        self.segments = []
-        self.motifs = None
+        self.motifs_colors = motifs_colors
+        self.segments = self.find_segments()
+        self.motifs = self.find_motifs(motifs_colors)
 
-    def find_motifs(self, motifs):
+    def find_motifs(self, motifs_colors):
         # find motifs in the sequence
 
         # keys are the motif color, values are tuples of their x position span (in base pairs)
-        motifs_positions = {}
+        found_motifs = []
         
-        for motif in motifs.keys():
+        for motif in motifs_colors.keys():
             # span doesn't work because when finding regex matches using finditer
             # with lookahead, it doesn't capture the string itself, just the start
 
@@ -43,22 +44,19 @@ class FastaRead:
             # instead of converting back to original length
             motif_len = len(re.sub(r"\[[ACTUG]+\]", "N", motif))
 
-            color = motifs[motif]
+            color = motifs_colors[motif]
             motif_matches = re.finditer(f"(?={motif})", self.seq.upper())
 
             for match in motif_matches:
                 # initialize 
-                x_span = (match.start(), match.start() + motif_len)
-                if color in motifs_positions.keys():
-                    motifs_positions[color].append(x_span)
-                else:
-                    motifs_positions[color] = [x_span]
-
-        self.motifs = motifs_positions
+                start_bp, end_bp = (match.start(), match.start() + motif_len)
+                found_motifs.append(Motif(color, start_bp, end_bp))
+        return found_motifs
 
     def find_segments(self):
         # assign segments to the segments list
         # TODO: test to see if this works properly with multiple introns/exons
+        segments = []
         segment_matches = re.findall(r"([actug]+|[ACTUG]+)", self.seq)
         bp = 0
         for segment_str in segment_matches:
@@ -70,58 +68,59 @@ class FastaRead:
                 is_exon = False
             # TODO: check to see how this translates to the drawings
             segment = Segment(bp, bp + segment_bp, is_exon)
-            self.segments.append(segment)
+            segments.append(segment)
             bp += len(segment_str)
+        return segments
     
     def draw_read(self):
         # TODO: add docstring for this
-
-        #
-        # with cairo.SVGSurface(f"{self.header}.svg", len(self.seq), READ_DRAWING_HEIGHT) as segments_rs:
-        #     # segments_rs = cairo.RecordingSurface(cairo.Content.COLOR, bounds)
-        #     context = cairo.Context(segments_rs)
-        #     # scale so the line weights and y are relative to the frame of that read as a whole
-        #     context.scale(1, READ_DRAWING_HEIGHT)
-        #     for segment in self.segments:
-        #         if segment.is_exon:
-        #             context.set_line_width(0.7)
-        #         else:
-        #             context.set_line_width(0.1)
-        #         context.move_to(segment.start_bp, 0.5)
-        #         context.line_to(segment.end_bp, 0.5)
-        #         context.stroke()
-        #     segments_rs.write_to_png(f'{self.header}.png')
+        
         read_width = len(self.seq)
         bounds = cairo.Rectangle(0, 0, read_width, READ_DRAWING_HEIGHT) # type: ignore
         # segments_rs = cairo.RecordingSurface(cairo.Content.COLOR, bounds)
         segments_rs = cairo.RecordingSurface(cairo.Content.COLOR, bounds)
-        context = cairo.Context(segments_rs)
+        seg_context = cairo.Context(segments_rs)
         # scale so the line weights and y are relative to the frame of that read as a whole
-        context.set_source_rgb(1, 1, 1)
-        context.rectangle(0, 0, read_width, READ_DRAWING_HEIGHT)
-        context.fill()
+        seg_context.set_source_rgb(1, 1, 1)
+        seg_context.rectangle(0, 0, read_width, READ_DRAWING_HEIGHT)
+        seg_context.fill()
 
-        context.scale(1, READ_DRAWING_HEIGHT)
+        seg_context.scale(1, READ_DRAWING_HEIGHT)
 
-        context.set_source_rgb(0, 0, 0)
+        # drawing motifs first so they don't cover the segments
+        seg_context.set_line_width(0.8)
+        for motif in self.motifs:
+            # have to convert hex codes into normalized r g b
+            hex_code = motif.color
+            r = int(hex_code[1:3], 16)/255
+            g = int(hex_code[3:5], 16)/255
+            b = int(hex_code[5:], 16)/255
+            # print(f"{r}, {g}, {b}")
+
+            seg_context.move_to(motif.start_bp, 0.5)
+            seg_context.set_source_rgb(r, g, b)
+            seg_context.line_to(motif.end_bp, 0.5)
+            seg_context.stroke()
+        
+        # drawing segments
+        seg_context.set_source_rgb(0, 0, 0)
         for segment in self.segments:
             if segment.is_exon:
-                context.set_line_width(0.8)
+                seg_context.set_line_width(0.6)
             else:
-                context.set_line_width(0.1)
-            context.move_to(segment.start_bp, 0.5)
-            context.line_to(segment.end_bp, 0.5)
-            context.stroke()
+                seg_context.set_line_width(0.1)
+            seg_context.move_to(segment.start_bp, 0.5)
+            seg_context.line_to(segment.end_bp, 0.5)
+            seg_context.stroke()
         
-        # rs.write_to_png(f'{self.header}.png')
-        # with cairo.SVGSurface(f"{self.header}.svg", len(self.seq), READ_DRAWING_HEIGHT) as fasta_context:
-        #     cr = cairo.Context(fasta_context)
-        #     cr.rectangle(0, 0, WIDTH, HEIGHT)
-        #     cr.set_source_rgb(1, 1, 1)
-        #     cr.fill()
-        #     cr.set_source_surface(segments_rs, 0, 0)
-        #     cr.paint()
-        #     fasta_context.write_to_png(f'{self.header}.png')
+        # # drawing staggered 
+        # read_rs = cairo.RecordingSurface(cairo.Content.COLOR, bounds)
+        # read_context = cairo.Context(segments_rs)
+        # # scale so the line weights and y are relative to the frame of that read as a whole
+        # read_context.set_source_rgb(1, 1, 1)
+        # read_context.rectangle(0, 0, read_width, READ_DRAWING_HEIGHT)
+        # read_context.fill()
+        
         return segments_rs
 
 class Motif:
@@ -147,9 +146,9 @@ def main(fasta = args.fasta, motifs_file = args.motifs, out = args.out):
     :param motifs: Description
     :param out: Description
     '''
-    motifs = get_motifs(motifs_file)
+    motifs_colors = get_motifs(motifs_file)
 
-    reads, max_length = read_fasta(fasta, motifs)
+    reads, max_length = read_fasta(fasta, motifs_colors)
         
     fasta_width = max_length + 20
     fasta_height = len(reads) * READ_DRAWING_HEIGHT
@@ -160,7 +159,6 @@ def main(fasta = args.fasta, motifs_file = args.motifs, out = args.out):
         context.set_source_rgb(1, 1, 1)
         context.fill()
         for n, read in enumerate(reads):
-            read.draw_read()
             context.set_source_surface(read.draw_read(), 10, n * READ_DRAWING_HEIGHT)
             context.paint()
         surface.write_to_png(out)
@@ -205,7 +203,7 @@ def get_motifs(motifs_file):
     # print(motifs)
     return motifs
 
-def read_fasta(fasta, motifs):
+def read_fasta(fasta, motifs_colors):
     # TODO: write docstring -- returns reads
     '''
     '''
@@ -219,20 +217,20 @@ def read_fasta(fasta, motifs):
                 # header line
                 header = line
             else:
-                reads.append(FastaRead(header, line))
+                reads.append(FastaRead(header, line, motifs_colors))
 
                 # set max read length for purposes of setting the canvas width
                 read_length = len(line)
 
                 if read_length > max_length:
                     max_length = read_length
-        for read in reads:
-            read.find_motifs(motifs)
-            read.find_segments()
-            # for segment in read.segments:
-            #     print(segment.start_bp)
-            #     print(segment.end_bp)
-            # print(read.motifs)
+        # for read in reads:
+        #     read.find_motifs(motifs)
+        #     read.find_segments()
+        #     # for segment in read.segments:
+        #     #     print(segment.start_bp)
+        #     #     print(segment.end_bp)
+        #     # print(read.motifs)
     return reads, max_length
 
 main()
