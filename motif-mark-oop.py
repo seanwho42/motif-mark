@@ -33,13 +33,14 @@ class FastaRead:
         # find motifs in the sequence
 
         # keys are the motif color, values are tuples of their x position span (in base pairs)
-
         motifs_positions = {}
+        
         for motif in motifs.keys():
             # span doesn't work because when finding regex matches using finditer
             # with lookahead, it doesn't capture the string itself, just the start
 
-            print(re.sub(r"\[[ACTUG]+\]", "N", motif))
+            # could make this more simple by passing the length to motif dictionary
+            # instead of converting back to original length
             motif_len = len(re.sub(r"\[[ACTUG]+\]", "N", motif))
 
             color = motifs[motif]
@@ -60,8 +61,12 @@ class FastaRead:
         pass
 
 class Motif:
-    def __init__(self):
-        self.color = None
+    def __init__(self, color, start_bp, end_bp):
+        self.color = color
+        self.start_bp = start_bp
+        self.end_bp = end_bp
+        self.start_x = None
+        self.end_x = None
 
 class Segment:
     def __init__(self, start_bp, end_bp):
@@ -80,7 +85,7 @@ class Segment:
         '''
         # TODO: make this figure it out within the context of the longest read -- it should be called after all have been read in
         x = bp
-        return 
+        return
 
 class Intron(Segment):
     pass
