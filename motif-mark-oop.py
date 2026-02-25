@@ -34,17 +34,18 @@ class FastaRead:
 
         # keys are the motif color, values are tuples of their x position span (in base pairs)
         found_motifs = []
+
+        print(motifs_colors)
         
-        for motif in motifs_colors.keys():
+        for pattern, color in motifs_colors.values():
             # span doesn't work because when finding regex matches using finditer
             # with lookahead, it doesn't capture the string itself, just the start
 
             # could make this more simple by passing the length to motif dictionary
             # instead of converting back to original length
-            motif_len = len(re.sub(r"\[[ACTUG]+\]", "N", motif))
+            motif_len = len(re.sub(r"\[[ACTUG]+\]", "N", pattern))
 
-            color = motifs_colors[motif]
-            motif_matches = re.finditer(f"(?={motif})", self.seq.upper())
+            motif_matches = re.finditer(f"(?={pattern})", self.seq.upper())
 
             for match in motif_matches:
                 # initialize 
@@ -159,8 +160,6 @@ class Segment:
 
 
 
-
-
 def main(fasta = args.fasta, motifs_file = args.motifs):
     #TODO: flush out docstring
     '''
@@ -197,7 +196,7 @@ def main(fasta = args.fasta, motifs_file = args.motifs):
             # add that height to track where to put next canvas
             x0, y0, width, label_height = label_rc.ink_extents()
             current_height += label_height
-            print(label_height)
+            # print(label_height)
 
             context.set_source_surface(read.draw_segments(), 10, current_height)
             context.paint()
@@ -233,11 +232,13 @@ def get_motifs(motifs_file):
 
     with open(motifs_file, 'r') as mf:
         for n, motif in enumerate(mf):
+            motif = motif.strip()
             # make it all upper case -- comparison later will make the FASTA nucleotides lower case to match
-            motif = motif.strip().upper()
+            pattern = motif.upper()
             for nuc in iupac_subs.keys():
-                motif = re.sub(nuc, iupac_subs[nuc], motif)
-            motifs[motif] = color_palette[n]
+                pattern = re.sub(nuc, iupac_subs[nuc], pattern)
+                print(pattern)
+            motifs[motif] = (pattern, color_palette[n])
     # print(motifs)
     return motifs
 
