@@ -9,6 +9,7 @@ from bioinfo import oneline_fasta
 # ['#66c2a5','#fc8d62','#8da0cb','#e78ac3','#a6d854','#ffd92f','#e5c494','#b3b3b3']
 
 READ_DRAWING_HEIGHT = 40
+KEY_HEIGHT = 30
 
 # handle argparse
 def get_args():
@@ -35,7 +36,7 @@ class FastaRead:
         # keys are the motif color, values are tuples of their x position span (in base pairs)
         found_motifs = []
 
-        print(motifs_colors)
+        # print(motifs_colors)
         
         for pattern, color in motifs_colors.values():
             # span doesn't work because when finding regex matches using finditer
@@ -111,11 +112,7 @@ class FastaRead:
         seg_context.set_line_width(0.8)
         for motif in self.motifs:
             # have to convert hex codes into normalized r g b
-            hex_code = motif.color
-            r = int(hex_code[1:3], 16)/255
-            g = int(hex_code[3:5], 16)/255
-            b = int(hex_code[5:], 16)/255
-            # print(f"{r}, {g}, {b}")
+            r, g, b = get_norm_rgb(motif.color)
 
             seg_context.move_to(motif.start_bp, 0.5)
             seg_context.set_source_rgb(r, g, b)
@@ -171,15 +168,23 @@ def main(fasta = args.fasta, motifs_file = args.motifs):
     '''
     motifs_colors = get_motifs(motifs_file)
 
-    reads, max_length = read_fasta(fasta, motifs_colors)
-
-    fasta_width = max_length + 20
-    fasta_height = 0
+    reads = read_fasta(fasta, motifs_colors)
+    
+    max_width = 0
+    fasta_height = KEY_HEIGHT
     for read in reads:
         x0, y0, width, label_height = read.draw_label().ink_extents()
         fasta_height += label_height
+        # TODO: figure out unbound copy things so it isn't fixed at 1000 and we can include this
+        # without it looking dumb... right now ludicrously long headers will get cut off.
+        # if width > max_width:
+        #     max_width = width
         x0, y0, width, segments_height = read.draw_segments().ink_extents()
         fasta_height += segments_height
+        if width > max_width:
+            max_width = width
+    fasta_width = max_width + 20
+
     
     out = re.sub(r"\.(fa)|(fasta)$", "", fasta)
     with cairo.SVGSurface(f"{out}.svg", fasta_width, fasta_height) as surface:
@@ -201,6 +206,8 @@ def main(fasta = args.fasta, motifs_file = args.motifs):
             context.set_source_surface(read.draw_segments(), 10, current_height)
             context.paint()
             current_height += READ_DRAWING_HEIGHT
+        context.set_source_surface(draw_key(motifs_dict = motifs_colors), 0, current_height)
+        context.paint()
         surface.write_to_png(f"{out}.png")
 
 def get_motifs(motifs_file):
@@ -237,7 +244,6 @@ def get_motifs(motifs_file):
             pattern = motif.upper()
             for nuc in iupac_subs.keys():
                 pattern = re.sub(nuc, iupac_subs[nuc], pattern)
-                print(pattern)
             motifs[motif] = (pattern, color_palette[n])
     # print(motifs)
     return motifs
@@ -257,12 +263,6 @@ def read_fasta(fasta, motifs_colors):
                 header = line
             else:
                 reads.append(FastaRead(header, line, motifs_colors))
-
-                # set max read length for purposes of setting the canvas width
-                read_length = len(line)
-
-                if read_length > max_length:
-                    max_length = read_length
         # for read in reads:
         #     read.find_motifs(motifs)
         #     read.find_segments()
@@ -270,6 +270,60 @@ def read_fasta(fasta, motifs_colors):
         #     #     print(segment.start_bp)
         #     #     print(segment.end_bp)
         #     # print(read.motifs)
-    return reads, max_length
+    return reads
+
+def get_norm_rgb(hex_code):
+    # They required normalized rgb colors, and I was being stubborn about that, so here we go
+    r = int(hex_code[1:3], 16)/255
+    g = int(hex_code[3:5], 16)/255
+    b = int(hex_code[5:], 16)/255
+    # print(f"{r}, {g}, {b}")
+    return r, g, b
+
+def draw_key(motifs_dict):
+    # can't figure out how to make the RecordingSurfaces work properly when unbounded.. using hard coded size for this for now
+    bounds = cairo.Rectangle(0, 0, 1000, KEY_HEIGHT) # type: ignore
+    key_rs = cairo.RecordingSurface(cairo.Content.COLOR, bounds)
+    key_context = cairo.Context(key_rs)
+
+    key_context.set_source_rgb(1, 1, 1)
+    key_context.paint()
+    key_context.set_source_rgb(0, 0, 0)
+
+    # make a separator line
+    key_context.move_to(0, 0)
+    key_context.set_line_width(2)
+    key_context.line_to(1000, 0)
+    key_context.stroke()
+    
+
+
+    # now draw the colors and corresponding motifs
+    key_context.scale(KEY_HEIGHT, KEY_HEIGHT) # makes it easier to have standard square sizes
+    key_context.set_line_width(0.5)
+    # start at 10 for some padding
+    current_x = 10/KEY_HEIGHT
+
+    # font styling
+    key_context.set_font_size(0.5)
+    key_context.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+
+    for motif, (pattern, color) in motifs_dict.items():
+        r, g, b = get_norm_rgb(color)
+        key_context.set_source_rgb(r, g, b)
+        key_context.move_to(current_x, 0.5)
+        new_x = current_x + 0.5
+        key_context.line_to(new_x, 0.5)
+        current_x = new_x + 0.05
+        key_context.stroke()
+
+        key_context.set_source_rgb(0, 0, 0)
+        key_context.move_to(current_x, 0.75)
+        key_context.show_text(motif)
+        key_context.stroke()
+        # now stagger to the next
+        (x, y, width, height, dx, dy) = key_context.text_extents(motif)
+        current_x += width + 0.5
+    return key_rs
 
 main()
