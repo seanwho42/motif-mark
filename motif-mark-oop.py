@@ -14,7 +14,9 @@ KEY_HEIGHT = 30
 # handle argparse
 def get_args():
     # TODO: make sure this is clear/descriptive
-    parser = argparse.ArgumentParser(description="")
+    parser = argparse.ArgumentParser(description="Visualizes motifs found across nucleotides, as well as which regions "\
+                                     "are introns or exons. Note that this current iteration does not stagger motifs" \
+                                     "to show overlapping of motifs. Provide input fasta file and motifs file.")
     parser.add_argument("-f", "--fasta", help = "Fasta file input with sequences", required = True)
     parser.add_argument("-m", "--motifs", help = "Text file with new motifs each on a new line", required=True)
     # TODO: add in future support for SVGs as alternative since the assignment isn't chill with PNGs
@@ -74,6 +76,8 @@ class FastaRead:
         return segments
     
     def draw_label(self):
+        # TODO: further clean up labelling -- add a second line to include bp aligned on either end of read?
+        cleaner_label = self.header[1:]
         bounds = cairo.Rectangle(0, 0, 1000, 30) # type: ignore
         label_rs = cairo.RecordingSurface(cairo.Content.COLOR, bounds)
         label_context = cairo.Context(label_rs)
@@ -87,7 +91,7 @@ class FastaRead:
         label_context.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
 
         label_context.move_to(0, 20)
-        label_context.show_text(self.header)
+        label_context.show_text(cleaner_label)
         label_context.stroke()
         return label_rs
 
