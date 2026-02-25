@@ -16,7 +16,6 @@ def get_args():
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("-f", "--fasta", help = "Fasta file input with sequences", required = True)
     parser.add_argument("-m", "--motifs", help = "Text file with new motifs each on a new line", required=True)
-    parser.add_argument("-o", "--out", help = "Output path for output png", required = True)
     # TODO: add in future support for SVGs as alternative since the assignment isn't chill with PNGs
     return parser.parse_args()
 
@@ -162,7 +161,7 @@ class Segment:
 
 
 
-def main(fasta = args.fasta, motifs_file = args.motifs, out = args.out):
+def main(fasta = args.fasta, motifs_file = args.motifs):
     #TODO: flush out docstring
     '''
     Docstring for main
@@ -182,8 +181,8 @@ def main(fasta = args.fasta, motifs_file = args.motifs, out = args.out):
         fasta_height += label_height
         x0, y0, width, segments_height = read.draw_segments().ink_extents()
         fasta_height += segments_height
-
-        
+    
+    out = re.sub(r"\.(fa)|(fasta)$", "", fasta)
     with cairo.SVGSurface(f"{out}.svg", fasta_width, fasta_height) as surface:
         context = cairo.Context(surface)
         context.rectangle(0, 0, fasta_width, fasta_height)
@@ -203,7 +202,7 @@ def main(fasta = args.fasta, motifs_file = args.motifs, out = args.out):
             context.set_source_surface(read.draw_segments(), 10, current_height)
             context.paint()
             current_height += READ_DRAWING_HEIGHT
-        surface.write_to_png(out)
+        surface.write_to_png(f"{out}.png")
 
 def get_motifs(motifs_file):
     # TODO: finish docstring
