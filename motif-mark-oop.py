@@ -13,7 +13,6 @@ KEY_HEIGHT = 30
 
 # handle argparse
 def get_args():
-    # TODO: make sure this is clear/descriptive
     parser = argparse.ArgumentParser(description="Visualizes motifs found across nucleotides, as well as which regions "\
                                      "are introns or exons. Note that this current iteration does not stagger motifs" \
                                      "to show overlapping of motifs. Provide input fasta file and motifs file.")
@@ -76,7 +75,11 @@ class FastaRead:
         return segments
     
     def draw_label(self):
-        # TODO: further clean up labelling -- add a second line to include bp aligned on either end of read?
+        '''
+        Returns RecordingSurface for read label
+        
+        :returns: returns RecordingSurface for read label
+        '''
         cleaner_label = self.header[1:]
         bounds = cairo.Rectangle(0, 0, 1000, 30) # type: ignore
         label_rs = cairo.RecordingSurface(cairo.Content.COLOR, bounds)
@@ -98,8 +101,12 @@ class FastaRead:
 
 
     def draw_segments(self):
-        # TODO: add docstring for this
+        '''
+        Returns RecordingSurface for segments with overlaid motifs
         
+        :returns: returns RecordingSurface for read
+        '''
+
         read_width = len(self.seq)
         bounds = cairo.Rectangle(0, 0, read_width, READ_DRAWING_HEIGHT) # type: ignore
         # segments_rs = cairo.RecordingSurface(cairo.Content.COLOR, bounds)
@@ -135,16 +142,22 @@ class FastaRead:
             seg_context.stroke()
         
         return segments_rs
-   
-    def draw_motifs(self):
-        read_width = len(self.seq)
-        # TODO: write docstring -- patches together components of an individual read into one recording surface
-        motifs_rs = cairo.RecordingSurface(cairo.Content.COLOR, None)
-        motifs_context = cairo.Context(motifs_rs)
+    
+    # TODO: implement this
+    # def draw_motifs(self):
+    #     '''
+    #     Returns RecordingSurface
+        
+    #     :returns: returns RecordingSurface for staggered motifs
+    #     '''
+    #     read_width = len(self.seq)
+    #     # TODO: write docstring -- patches together components of an individual read into one recording surface
+    #     motifs_rs = cairo.RecordingSurface(cairo.Content.COLOR, None)
+    #     motifs_context = cairo.Context(motifs_rs)
 
-        motifs_context.set_source_surface(self.draw_segments(), 0, READ_DRAWING_HEIGHT)
-        motifs_context.paint()
-        return motifs_rs
+    #     motifs_context.set_source_surface(self.draw_segments(), 0, READ_DRAWING_HEIGHT)
+    #     motifs_context.paint()
+    #     return motifs_rs
     
 class Motif:
     def __init__(self, color, start_bp, end_bp):
@@ -164,11 +177,10 @@ class Segment:
 def main(fasta = args.fasta, motifs_file = args.motifs):
     #TODO: flush out docstring
     '''
-    Docstring for main
+    Main function to read, visualize, and draw the image
     
-    :param fasta: Description
-    :param motifs: Description
-    :param out: Description
+    :param fasta: properly formatted fasta file name
+    :param motifs: motifs file name (IUPAC ambiguous motifs deliminated by newlines)
     '''
     motifs_colors = get_motifs(motifs_file)
 
@@ -215,12 +227,12 @@ def main(fasta = args.fasta, motifs_file = args.motifs):
         surface.write_to_png(f"{out}.png")
 
 def get_motifs(motifs_file):
-    # TODO: finish docstring
     '''
     Gets motifs from motifs file and replaces characters with appropriate
     regex pattern to match (upper case only) to nucleotides in fasta file.
     
-    :param motifs_file: Description of motifs file parameter
+    :param motifs_file: Motifs file with each motif deliminated by new lines
+    :returns: motifs dictionary {motif: (regex_pattern, hex_color)}
     '''
 
     color_palette = ['#66c2a5','#fc8d62','#8da0cb','#e78ac3','#a6d854','#ffd92f','#e5c494','#b3b3b3']
@@ -253,8 +265,10 @@ def get_motifs(motifs_file):
     return motifs
 
 def read_fasta(fasta, motifs_colors):
-    # TODO: write docstring -- returns reads
     '''
+    Reads in fasta and saves them as FastaRead objects
+
+    :returns: list if FastaRead objects
     '''
     reads = []
     fasta = oneline_fasta(fasta)
@@ -277,7 +291,13 @@ def read_fasta(fasta, motifs_colors):
     return reads
 
 def get_norm_rgb(hex_code):
-    # They required normalized rgb colors, and I was being stubborn about that, so here we go
+    # pycairo requires normalized rgb colors, and it felt like that shouldn't be the case, so here we go
+    '''
+    Takes hexidecimal color (i.e. #ffffff) and returns normalized r, g, b values (i.e. 1, 1, 1)
+
+    :param hex_code: hexidemical color as a string
+    :returns: tuple (r, g, b)
+    '''
     r = int(hex_code[1:3], 16)/255
     g = int(hex_code[3:5], 16)/255
     b = int(hex_code[5:], 16)/255
@@ -285,6 +305,13 @@ def get_norm_rgb(hex_code):
     return r, g, b
 
 def draw_key(motifs_dict):
+    '''
+    Takes motifs dictionary, returns RecordingSurface to be added to bottom of the visualization
+     
+    :param motifs_dict: motifs dictionary
+
+    :returns: returns RecordingSurface for motifs key
+    '''
     # can't figure out how to make the RecordingSurfaces work properly when unbounded.. using hard coded size for this for now
     bounds = cairo.Rectangle(0, 0, 1000, KEY_HEIGHT) # type: ignore
     key_rs = cairo.RecordingSurface(cairo.Content.COLOR, bounds)
