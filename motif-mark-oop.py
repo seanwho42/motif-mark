@@ -72,7 +72,27 @@ class FastaRead:
             bp += len(segment_str)
         return segments
     
-    def draw_read(self):
+    def draw_label(self):
+        bounds = cairo.Rectangle(0, 0, 1000, 30) # type: ignore
+        label_rs = cairo.RecordingSurface(cairo.Content.COLOR, bounds)
+        label_context = cairo.Context(label_rs)
+
+        label_context.set_source_rgb(1, 1, 1)
+        label_context.paint()
+        label_context.set_source_rgb(0, 0, 0)
+        
+        # font styling
+        label_context.set_font_size(15)
+        label_context.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+
+        label_context.move_to(0, 20)
+        label_context.show_text(self.header)
+        label_context.stroke()
+        return label_rs
+
+
+
+    def draw_segments(self):
         # TODO: add docstring for this
         
         read_width = len(self.seq)
@@ -113,16 +133,18 @@ class FastaRead:
             seg_context.line_to(segment.end_bp, 0.5)
             seg_context.stroke()
         
-        # # drawing staggered 
-        # read_rs = cairo.RecordingSurface(cairo.Content.COLOR, bounds)
-        # read_context = cairo.Context(segments_rs)
-        # # scale so the line weights and y are relative to the frame of that read as a whole
-        # read_context.set_source_rgb(1, 1, 1)
-        # read_context.rectangle(0, 0, read_width, READ_DRAWING_HEIGHT)
-        # read_context.fill()
-        
         return segments_rs
+   
+    def draw_motifs(self):
+        read_width = len(self.seq)
+        # TODO: write docstring -- patches together components of an individual read into one recording surface
+        motifs_rs = cairo.RecordingSurface(cairo.Content.COLOR, None)
+        motifs_context = cairo.Context(motifs_rs)
 
+        motifs_context.set_source_surface(self.draw_segments(), 0, READ_DRAWING_HEIGHT)
+        motifs_context.paint()
+        return motifs_rs
+    
 class Motif:
     def __init__(self, color, start_bp, end_bp):
         self.color = color
@@ -137,6 +159,9 @@ class Segment:
         self.end_bp = end_bp
 
 
+
+
+
 def main(fasta = args.fasta, motifs_file = args.motifs, out = args.out):
     #TODO: flush out docstring
     '''
@@ -149,22 +174,36 @@ def main(fasta = args.fasta, motifs_file = args.motifs, out = args.out):
     motifs_colors = get_motifs(motifs_file)
 
     reads, max_length = read_fasta(fasta, motifs_colors)
-        
+
     fasta_width = max_length + 20
-    fasta_height = len(reads) * READ_DRAWING_HEIGHT
+    fasta_height = 0
+    for read in reads:
+        x0, y0, width, label_height = read.draw_label().ink_extents()
+        fasta_height += label_height
+        x0, y0, width, segments_height = read.draw_segments().ink_extents()
+        fasta_height += segments_height
+
         
     with cairo.SVGSurface(f"{out}.svg", fasta_width, fasta_height) as surface:
         context = cairo.Context(surface)
         context.rectangle(0, 0, fasta_width, fasta_height)
         context.set_source_rgb(1, 1, 1)
         context.fill()
+
+        current_height = 0
         for n, read in enumerate(reads):
-            context.set_source_surface(read.draw_read(), 10, n * READ_DRAWING_HEIGHT)
+            label_rc = read.draw_label()
+            context.set_source_surface(label_rc, 10, current_height)
             context.paint()
+            # add that height to track where to put next canvas
+            x0, y0, width, label_height = label_rc.ink_extents()
+            current_height += label_height
+            print(label_height)
+
+            context.set_source_surface(read.draw_segments(), 10, current_height)
+            context.paint()
+            current_height += READ_DRAWING_HEIGHT
         surface.write_to_png(out)
-
-
-
 
 def get_motifs(motifs_file):
     # TODO: finish docstring
